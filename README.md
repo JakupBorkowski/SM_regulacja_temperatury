@@ -1,0 +1,1 @@
+# SM_regulacja_temperatury
