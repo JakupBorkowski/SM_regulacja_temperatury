@@ -71,6 +71,8 @@ void Error_Handler(void);
 #define USER_Btn_Pin GPIO_PIN_13
 #define USER_Btn_GPIO_Port GPIOC
 #define USER_Btn_EXTI_IRQn EXTI15_10_IRQn
+#define B280_CS1_Pin GPIO_PIN_6
+#define B280_CS1_GPIO_Port GPIOF
 #define MCO_Pin GPIO_PIN_0
 #define MCO_GPIO_Port GPIOH
 #define LCD_RW_Pin GPIO_PIN_0
@@ -101,10 +103,6 @@ void Error_Handler(void);
 #define TM3_PWM_CH4_GPIO_Port GPIOB
 #define LD1EX_Pin GPIO_PIN_15
 #define LD1EX_GPIO_Port GPIOE
-#define LD2EX_Pin GPIO_PIN_10
-#define LD2EX_GPIO_Port GPIOB
-#define LD3EX_Pin GPIO_PIN_11
-#define LD3EX_GPIO_Port GPIOB
 #define RMII_TXD1_Pin GPIO_PIN_13
 #define RMII_TXD1_GPIO_Port GPIOB
 #define LD3_Pin GPIO_PIN_14
@@ -149,6 +147,8 @@ void Error_Handler(void);
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
+#define BMP280_MOSIC12_Pin GPIO_PIN_12
+#define BMP280_MOSIC12_GPIO_Port GPIOC
 #define LCD_D4_Pin GPIO_PIN_4
 #define LCD_D4_GPIO_Port GPIOD
 #define LCD_D5_Pin GPIO_PIN_5
@@ -163,14 +163,16 @@ void Error_Handler(void);
 #define RMII_TXD0_GPIO_Port GPIOG
 #define SW0_Pin GPIO_PIN_3
 #define SW0_GPIO_Port GPIOB
-#define LED_RGB_CH_R_Pin GPIO_PIN_4
-#define LED_RGB_CH_R_GPIO_Port GPIOB
+#define Heather2_Pin GPIO_PIN_4
+#define Heather2_GPIO_Port GPIOB
+#define Heather_Pin GPIO_PIN_5
+#define Heather_GPIO_Port GPIOB
 #define LD2_Pin GPIO_PIN_7
 #define LD2_GPIO_Port GPIOB
-#define BH1750_SCL_Pin GPIO_PIN_8
-#define BH1750_SCL_GPIO_Port GPIOB
-#define BH1750_SDA_Pin GPIO_PIN_9
-#define BH1750_SDA_GPIO_Port GPIOB
+#define LCD_SCL_Pin GPIO_PIN_8
+#define LCD_SCL_GPIO_Port GPIOB
+#define LCD_SDA_Pin GPIO_PIN_9
+#define LCD_SDA_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
