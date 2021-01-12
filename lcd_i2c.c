@@ -39,11 +39,11 @@ void lcd_init(struct lcd_disp * lcd)
 	}
 
 	/* init sequence */
-	HAL_Delay(40);
+	HAL_Delay(50);
+	lcd_write(lcd->addr, INIT_8_BIT_MODE, xpin);
+	HAL_Delay(10);
 	lcd_write(lcd->addr, INIT_8_BIT_MODE, xpin);
 	HAL_Delay(5);
-	lcd_write(lcd->addr, INIT_8_BIT_MODE, xpin);
-	HAL_Delay(1);
 	lcd_write(lcd->addr, INIT_8_BIT_MODE, xpin);
 
 	/* set 4-bit mode */
@@ -70,7 +70,7 @@ void lcd_write(uint8_t addr, uint8_t data, uint8_t xpin)
 	/* send data via i2c */
 	HAL_I2C_Master_Transmit(&HI2C_DEF, addr, tx_data, 4, 100);
 
-	HAL_Delay(5);
+	HAL_Delay(10);
 }
 
 void lcd_display(struct lcd_disp * lcd)

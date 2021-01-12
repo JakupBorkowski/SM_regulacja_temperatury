@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "i2c.h"
 #include "spi.h"
 #include "tim.h"
@@ -27,19 +28,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "bmp280.h"
-#include "bmp280_defs.h"
-#include "lcd_i2c.h"
+#include "components.h"
+//#include "lcd_i2c.h"
 #include <stdio.h>
 #include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define BMP280_SPI (&hspi4)
 
-#define BMP280_CS1 1
-#define BMP280_CS2 2
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -54,36 +51,48 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-int32_t temperatura_zadana=0;
-int32_t temperatura_zadana_dol=0;
-int32_t temperatura_zadana_gora=0;
-int32_t acc1=0;
-int32_t acc2=0;
-int32_t acc3=0;
-int32_t acc4=0;
-int licznik = 0;
-int32_t local_pres, local_temp;
-char tx_buffer[20];
+uint32_t wzmocnienie = 0;
+uint32_t enc_counter = 0;
+int32_t temperatura_zadana=5000;
+uint32_t acc1=0;
+uint32_t acc2=0;
+uint32_t acc3=0;
+uint32_t acc4=0;
 char rx_buffer[5];
-uint8_t enc_counter=0;
+char tx_buffer[200];
+char tx_buffer2[50];
+uint32_t uchyb = 0;
+uint32_t kp = 20;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-int8_t bmp280_spi_reg_write(uint8_t cs, uint8_t reg_addr, uint8_t *reg_data, uint16_t length);
-int8_t bmp280_spi_reg_read(uint8_t cs, uint8_t reg_addr, uint8_t *reg_data, uint16_t length);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/**
+  * @brief  EXTI line detection callbacks.
+  * @param  GPIO_Pin Specifies the pins connected EXTI line
+  * @retval None
+  */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if(GPIO_Pin==ENC_CLK_Pin)
-	{
-		enc_counter=htim4.Instance->CNT;
-	}
+  /* Rotary encoder (ENC) handling */
+ if(GPIO_Pin == henc1.CLK_Pin)
+  {
+    ENC_UpdateCounter(&henc1);
+
+  }
 }
+
+/**
+  * @brief  Period elapsed callback in non-blocking mode
+  * @param  htim TIM handle
+  * @retval None
+  */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	{
     if(huart->Instance ==USART3)
@@ -96,9 +105,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	            acc4=rx_buffer[4]-'0';
             temperatura_zadana=1000*acc1+100*acc2+10*acc3+1*acc4;
 	        }
+	        HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,5);
 	    }
-	    HAL_UART_Receive_IT(&huart3,(uint8_t*)rx_buffer,5);
+
 	}
+
 
 /* USER CODE END 0 */
 
@@ -108,19 +119,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */	struct bmp280_dev bmp280_1 ={
-			.dev_id = BMP280_CS1,
-			.intf = BMP280_SPI_INTF,
-			.read = bmp280_spi_reg_read,
-			.write = bmp280_spi_reg_write,
-			.delay_ms=HAL_Delay,
-	};
+  /* USER CODE BEGIN 1 */
+  int8_t BMP280_1_Status = -1;
 
-	struct bmp280_uncomp_data bmp280_1_data;
-	int32_t temp32, temp32_2;
-	double temp;
-	uint32_t pres32;
-	double pres;
+  struct bmp280_uncomp_data bmp280_1_data;
+
+  int32_t temp32;
+  double temp;
+  uint32_t pres32;
+  double pres;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -141,6 +149,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART3_UART_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -148,37 +157,15 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI4_Init();
   /* USER CODE BEGIN 2 */
-
-  HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
-
-//Initialize BMP280 sensor
-int8_t rslt;
-struct bmp280_config conf;
-
-/*Always read the current settings before writing, especially when all the configuration is modified */
-rslt = bmp280_init(&bmp280_1);
-
-/* Configuring the temperature oversampling, filter coefficient and output data rate*/
-/*Overwrite the desired settings */
-conf.filter = BMP280_FILTER_OFF;
-
-/* Temperature oversampling set at 1x */
-conf.os_temp=BMP280_OS_1X;
-
-/* Temperature oversampling set at 1x */
-conf.os_pres = BMP280_OS_1X;
-
-/*Setting the output data rate as 4Hz (250ms) */
-conf.odr=BMP280_ODR_250_MS;
-
-rslt=bmp280_set_config(&conf,&bmp280_1);
-
-/*Always set the power mode after setting the configuration*/
-rslt=bmp280_set_power_mode(BMP280_NORMAL_MODE, &bmp280_1);
-
-HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
-HAL_UART_Receive_IT(&huart3, (uint8_t*)rx_buffer,5);
-lcd_init(&disp);
+//Inicjalizacja wyświetlacza
+  lcd_init(&disp);
+//Status czujnika
+  BMP280_1_Status = BMP280_Init(&bmp280_1);
+//Oczekiwanie na zadaną temperaturę po porcie szeregowym
+  HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,5);
+//Uruchomienie kanału PWM do sterowania grzałką
+  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -186,64 +173,63 @@ lcd_init(&disp);
   while (1)
   {
 
+	/* regulacja temperatury */
+	uchyb=temperatura_zadana-temp32;
+	if(temperatura_zadana>temp32)
+	{
+		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2,0);
+	wzmocnienie += kp*uchyb;
+	}
+	if(temperatura_zadana<temp32)
+	{
+		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2,500);
+	wzmocnienie=0;
+	}
+	if(wzmocnienie>1000)
+	{
+		wzmocnienie=1000;
+	}
+	if (wzmocnienie<0)
+	{
+		wzmocnienie=0;
+	}
 
-	 // Read BMP280 sensor measurement
-	 /*Reading the raw data from sensor */
-	  rslt=bmp280_get_uncomp_data(&bmp280_1_data,&bmp280_1);
-	 /*Getting 32 bit compensated temperature */
-	 rslt = bmp280_get_comp_temp_32bit(&temp32, bmp280_1_data.uncomp_temp, &bmp280_1);
+	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,wzmocnienie);
 
-	 /*Getting the compensated temperature as floating point value */
-	 rslt = bmp280_get_comp_temp_double(&temp, bmp280_1_data.uncomp_temp, &bmp280_1);
+    /* Reading the raw data from sensor */
+    BMP280_1_Status = bmp280_get_uncomp_data(&bmp280_1_data, &bmp280_1);
 
-	 /*Getting the compensated pressure using 32 bit precision */
-	 rslt = bmp280_get_comp_pres_32bit(&pres32, bmp280_1_data.uncomp_press, &bmp280_1);
+    /* Getting the 32 bit compensated temperature */
+    BMP280_1_Status = bmp280_get_comp_temp_32bit(&temp32,   bmp280_1_data.uncomp_temp, &bmp280_1);
 
+    /* Getting the compensated temperature as floating point value */
+    BMP280_1_Status = bmp280_get_comp_temp_double(&temp, bmp280_1_data.uncomp_temp, &bmp280_1);
 
-	 /*Getting the compensated pressure as floating point value */
-	 rslt = bmp280_get_comp_pres_double(&pres, bmp280_1_data.uncomp_press, &bmp280_1);
+    /* Getting the compensated pressure using 32 bit precision */
+    BMP280_1_Status = bmp280_get_comp_pres_32bit(&pres32, bmp280_1_data.uncomp_press, &bmp280_1);
 
-	 /*Sleep time between measurements = BMP280_ODR_250_MS*/
-	 bmp280_1.delay_ms(250);
+    /* Getting the compensated pressure as floating point value */
+    BMP280_1_Status = bmp280_get_comp_pres_double(&pres, bmp280_1_data.uncomp_press, &bmp280_1);
 
-
-	 /*Obsługa wyświetlacza lcd*/
-	 sprintf((char*)disp.f_line, "T:%d T_Z:%d",temp32, temperatura_zadana);
-	 sprintf((char*)disp.s_line, "ENC: %d", enc_counter);
-	 lcd_display(&disp);
-
-	 temperatura_zadana_dol=4480;
-	 temperatura_zadana_gora=4520;
-
-
-     /* regulacja temperatury */
-    	 if (temperatura_zadana>temp32)
-    	 {
-    		  /*Sterowania grzałką za pomocą PWM*/
-    		  HAL_GPIO_WritePin(Heather_GPIO_Port,Heather_Pin,GPIO_PIN_SET);
-    		  HAL_GPIO_WritePin(Heather2_GPIO_Port,Heather2_Pin,GPIO_PIN_SET);
-    		  /*wyłączenie wentylatora*/
-    		  HAL_GPIO_WritePin(LD1EX_GPIO_Port,LD1EX_Pin,GPIO_PIN_RESET);
-    	 }
-    	 if (temperatura_zadana<temp32)
-    	{
-    		 /*Sterowania grzałką za pomocą PWM*/
-    		 HAL_GPIO_WritePin(Heather_GPIO_Port,Heather_Pin,GPIO_PIN_RESET);
-    		 HAL_GPIO_WritePin(Heather2_GPIO_Port,Heather2_Pin,GPIO_PIN_RESET);
-    		 /*wyłączenie wentylatora*/
-    		 HAL_GPIO_WritePin(LD1EX_GPIO_Port,LD1EX_Pin,GPIO_PIN_SET);
-        }
-    	 if (temperatura_zadana==temp32)
-    	 {
-
-    		 HAL_GPIO_WritePin(Heather_GPIO_Port,Heather_Pin,GPIO_PIN_RESET);
-    		 HAL_GPIO_WritePin(Heather2_GPIO_Port,Heather2_Pin,GPIO_PIN_RESET);
-    		 HAL_GPIO_WritePin(LD1EX_GPIO_Port,LD1EX_Pin,GPIO_PIN_RESET);
-    	 }
-
-    	 HAL_Delay(1000);
+    /* Wyświetlanie pożądanego tekstu na LCD*/
+    sprintf((char*)disp.f_line, "T:%d T_Z:%d",temp32, temperatura_zadana);
+    sprintf((char*)disp.s_line, "kp*u:%d", wzmocnienie);
+    lcd_display(&disp);
 
 
+
+    /*Obsługa wyświetlacza lcd*/
+
+
+
+
+
+          	 //blad = -temp32+temperatura_zadana;
+          	 int n=sprintf(tx_buffer, "temp32: %d ; temp_zad: %d ; wzmocnienie: %d\r\n",temp32, temperatura_zadana, wzmocnienie);
+          	 HAL_UART_Transmit(&huart3, (uint8_t*)tx_buffer, n, 100);
+
+          	/* Sleep time between measurements = BMP280_ODR_250_MS */
+          	bmp280_1.delay_ms(250);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -302,11 +288,9 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_I2C1
-                              |RCC_PERIPHCLK_I2C2;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_I2C1;
   PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
   PeriphClkInitStruct.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
-  PeriphClkInitStruct.I2c2ClockSelection = RCC_I2C2CLKSOURCE_PCLK1;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -314,69 +298,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-#define BMP280_SPI_BUFFER_LEN 28
-#define BMP280_DATA_INDEX      1
-
-int8_t bmp280_spi_reg_write(uint8_t cs, uint8_t reg_addr, uint8_t *reg_data, uint16_t length)
-{
-	HAL_StatusTypeDef status = HAL_OK;
-	int32_t iError = BMP280_OK;
-	uint8_t txarray[BMP280_SPI_BUFFER_LEN];
-	uint8_t stringpos;
-
-	txarray[0]=reg_addr;
-	for (stringpos =0; stringpos<length ;stringpos++)
-	{
-		txarray[stringpos+BMP280_DATA_INDEX] = reg_data[stringpos];
-	}
-
-	if(cs==BMP280_CS1)
-	{
-		HAL_GPIO_WritePin(BMP280_CS1_GPIO_Port, BMP280_CS1_Pin,GPIO_PIN_RESET);
-	}
-
-	status=HAL_SPI_Transmit(BMP280_SPI, (uint8_t*)(&txarray),length+1, 100);
-	while(BMP280_SPI->State == HAL_SPI_STATE_BUSY){};
-
-	HAL_GPIO_WritePin(BMP280_CS1_GPIO_Port, BMP280_CS1_Pin,GPIO_PIN_SET);
-	if (status != HAL_OK)
-	{
-		iError=(-1);
-	}
-	return (int8_t)iError;
-}
-
-int8_t bmp280_spi_reg_read(uint8_t cs, uint8_t reg_addr, uint8_t *reg_data, uint16_t length)
-{
-	HAL_StatusTypeDef status = HAL_OK;
-	int32_t iError = BMP280_OK;
-	uint8_t txarray[BMP280_SPI_BUFFER_LEN] = {0,};
-	uint8_t rxarray[BMP280_SPI_BUFFER_LEN] = {0,};
-	uint8_t stringpos;
-
-	txarray[0]=reg_addr;
-
-	if(cs==BMP280_CS1)
-		{
-			HAL_GPIO_WritePin(BMP280_CS1_GPIO_Port, BMP280_CS1_Pin,GPIO_PIN_RESET);
-		}
-
-	status=HAL_SPI_TransmitReceive(BMP280_SPI, (uint8_t*)(&txarray),(uint8_t*)(&rxarray),length+1, 5);
-	while(BMP280_SPI->State ==HAL_SPI_STATE_BUSY) {};
-
-	HAL_GPIO_WritePin(BMP280_CS1_GPIO_Port, BMP280_CS1_Pin,GPIO_PIN_SET);
-
-	for (stringpos =0; stringpos <length; stringpos++)
-	{
-		reg_data[stringpos]=rxarray[stringpos+BMP280_DATA_INDEX];
-	}
-
-	if(status !=HAL_OK)
-	{
-		iError =(-1);
-	}
-	return (int8_t)iError;
-}
 
 /* USER CODE END 4 */
 
@@ -410,5 +331,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 #endif /* USE_FULL_ASSERT */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
-
-
