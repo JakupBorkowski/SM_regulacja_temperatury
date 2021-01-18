@@ -177,7 +177,6 @@ struct bmp280_uncomp_data bmp280_1_data;
   MX_TIM4_Init();
   MX_I2C1_Init();
   MX_SPI4_Init();
-  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 //Inicjalizacja wyświetlacza
 lcd_init(&disp);
@@ -208,7 +207,6 @@ lcd_display(&disp);
 
 //wysylanie po UART
 wysylanie_UART(tx_buffer, &temp32, &temperatura_zadana, &wzmocnienie_grzalka,  &wzmocnienie_wiatrak);
-HAL_UART_Transmit(&huart6, (uint8_t*)"HELLO WORLD!", 12, 100);
 /* Delay pomiedzy pomiarami = BMP280_ODR_250_MS */
 bmp280_1.delay_ms(250);
     /* USER CODE END WHILE */
@@ -269,10 +267,8 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_USART6
-                              |RCC_PERIPHCLK_I2C1;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_I2C1;
   PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
-  PeriphClkInitStruct.Usart6ClockSelection = RCC_USART6CLKSOURCE_PCLK2;
   PeriphClkInitStruct.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
