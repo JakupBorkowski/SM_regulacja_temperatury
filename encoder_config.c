@@ -29,17 +29,16 @@
 
 ENC_HandleTypeDef henc1 = {
   .Timer = &htim4,
-  .Counter  = 0,
+  .Counter  = temperatura_zadana,
 };
 
 
 #else
-
+extern int32_t temperatura_zadana;
 ENC_HandleTypeDef henc1 = {
   .CLK_Port = ENC_CLK_GPIO_Port, .CLK_Pin = ENC_CLK_Pin,
   .DT_Port  = ENC_DT_GPIO_Port,  .DT_Pin  = ENC_DT_Pin,
-  .Counter  = 2500,
-  .CounterMax = 4500, .CounterMin = 2500, .CounterStep = 50
+  .CounterMax = 3700, .CounterMin = 2500, .CounterStep = 10
 };
 
 #endif

@@ -51,6 +51,10 @@
 #include "bh1750.h"
 #include "bh1750_config.h"
 
+//! dodatkowe funkcje
+#include "functions.h"
+
+
 //! BMP280 Digital pressure and temperature sensor
 //! https://github.com/BoschSensortec/BMP280_driver
 #include "bmp280.h"

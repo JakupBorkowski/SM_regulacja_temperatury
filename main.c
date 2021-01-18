@@ -1,21 +1,21 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
-  *
-  ******************************************************************************
-  */
+******************************************************************************
+* @file           : main.c
+* @brief          : Main program body
+******************************************************************************
+* @attention
+*
+* <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
+* All rights reserved.</center></h2>
+*
+* This software component is licensed by ST under BSD 3-Clause license,
+* the "License"; You may not use this file except in compliance with the
+* License. You may obtain a copy of the License at:
+*                        opensource.org/licenses/BSD-3-Clause
+*
+******************************************************************************
+*/
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -41,6 +41,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TEMP_MIN 2550
+#define TEMP_MAX 3750
+#define TEMP_STEP 25
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,9 +56,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint32_t wzmocnienie = 0;
+int32_t wzmocnienie_grzalka = 0;
+int32_t wzmocnienie_wiatrak = 0;
+
 uint32_t enc_counter = 0;
-int32_t temperatura_zadana=5000;
+int32_t temperatura_zadana=TEMP_MIN;
+uint32_t kp =20;
+uint32_t uchyb = 0;
 uint32_t acc1=0;
 uint32_t acc2=0;
 uint32_t acc3=0;
@@ -61,8 +70,8 @@ uint32_t acc4=0;
 char rx_buffer[5];
 char tx_buffer[200];
 char tx_buffer2[50];
-uint32_t uchyb = 0;
-uint32_t kp = 20;
+int32_t temp32;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -74,42 +83,56 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 /**
-  * @brief  EXTI line detection callbacks.
-  * @param  GPIO_Pin Specifies the pins connected EXTI line
-  * @retval None
-  */
+* @brief  EXTI line detection callbacks.
+* @param  GPIO_Pin Specifies the pins connected EXTI line
+* @retval None
+*/
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+if(htim->Instance==TIM2)
+{
+ regulacja(&wzmocnienie_grzalka,  &wzmocnienie_wiatrak,  &kp, &uchyb,  &temperatura_zadana,  &temp32);
+ sterowanie( &wzmocnienie_grzalka,  &wzmocnienie_wiatrak);
+}
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  /* Rotary encoder (ENC) handling */
- if(GPIO_Pin == henc1.CLK_Pin)
-  {
-    ENC_UpdateCounter(&henc1);
-
-  }
+/*Przyciski do zmiany temperatury*/
+if(GPIO_Pin == EX1_Btn_Pin)
+{
+ if(temperatura_zadana==TEMP_MIN)
+ {
+	 temperatura_zadana=TEMP_MIN;
+ }
+ else
+ {
+ temperatura_zadana+=-TEMP_STEP;
+ }
+}
+if(GPIO_Pin == EX2_Btn_Pin)
+{
+ if(temperatura_zadana==TEMP_MAX)
+ {
+	 temperatura_zadana=TEMP_MAX;
+ }
+ else
+ {
+	 temperatura_zadana+=TEMP_STEP;
+ }
+}
 }
 
 /**
-  * @brief  Period elapsed callback in non-blocking mode
-  * @param  htim TIM handle
-  * @retval None
-  */
+* @brief  Period elapsed callback in non-blocking mode
+* @param  htim TIM handle
+* @retval None
+*/
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-	{
-    if(huart->Instance ==USART3)
-    {
-	        if(rx_buffer[0]=='T')
-	        {
-	            acc1=rx_buffer[1]-'0';
-	            acc2=rx_buffer[2]-'0';
-	            acc3=rx_buffer[3]-'0';
-	            acc4=rx_buffer[4]-'0';
-            temperatura_zadana=1000*acc1+100*acc2+10*acc3+1*acc4;
-	        }
-	        HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,5);
-	    }
-
-	}
-
+{
+if(huart->Instance ==USART3)
+pobieranie_temperatury_UART(rx_buffer, &acc1, &acc2, &acc3,& acc4, &temperatura_zadana);
+}
 
 /* USER CODE END 0 */
 
@@ -120,14 +143,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  int8_t BMP280_1_Status = -1;
+int8_t BMP280_1_Status = -1;
 
-  struct bmp280_uncomp_data bmp280_1_data;
+struct bmp280_uncomp_data bmp280_1_data;
 
-  int32_t temp32;
-  double temp;
-  uint32_t pres32;
-  double pres;
+
+
 
   /* USER CODE END 1 */
 
@@ -156,84 +177,44 @@ int main(void)
   MX_TIM4_Init();
   MX_I2C1_Init();
   MX_SPI4_Init();
+  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 //Inicjalizacja wyświetlacza
-  lcd_init(&disp);
+lcd_init(&disp);
 //Status czujnika
-  BMP280_1_Status = BMP280_Init(&bmp280_1);
+BMP280_1_Status = BMP280_Init(&bmp280_1);
 //Oczekiwanie na zadaną temperaturę po porcie szeregowym
-  HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,5);
+HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,5);
 //Uruchomienie kanału PWM do sterowania grzałką
-  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
+HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
+HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+while (1)
+{
+/* Odczytywanie surowych danych z sensora */
+BMP280_1_Status = bmp280_get_uncomp_data(&bmp280_1_data, &bmp280_1);
 
-	/* regulacja temperatury */
-	uchyb=temperatura_zadana-temp32;
-	if(temperatura_zadana>temp32)
-	{
-		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2,0);
-	wzmocnienie += kp*uchyb;
-	}
-	if(temperatura_zadana<temp32)
-	{
-		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2,500);
-	wzmocnienie=0;
-	}
-	if(wzmocnienie>1000)
-	{
-		wzmocnienie=1000;
-	}
-	if (wzmocnienie<0)
-	{
-		wzmocnienie=0;
-	}
+/* Otrzymywanie 32-bitowej skompensowanej temperatury */
+BMP280_1_Status = bmp280_get_comp_temp_32bit(&temp32,   bmp280_1_data.uncomp_temp, &bmp280_1);
 
-	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1,wzmocnienie);
+/*LCD*/
+sprintf((char*)disp.f_line, "T:%d T_Z:%d",(int)temp32, (int)temperatura_zadana);
+sprintf((char*)disp.s_line, "w_g:%d w_w:%d", (int)wzmocnienie_grzalka,(int)wzmocnienie_wiatrak);
+lcd_display(&disp);
 
-    /* Reading the raw data from sensor */
-    BMP280_1_Status = bmp280_get_uncomp_data(&bmp280_1_data, &bmp280_1);
-
-    /* Getting the 32 bit compensated temperature */
-    BMP280_1_Status = bmp280_get_comp_temp_32bit(&temp32,   bmp280_1_data.uncomp_temp, &bmp280_1);
-
-    /* Getting the compensated temperature as floating point value */
-    BMP280_1_Status = bmp280_get_comp_temp_double(&temp, bmp280_1_data.uncomp_temp, &bmp280_1);
-
-    /* Getting the compensated pressure using 32 bit precision */
-    BMP280_1_Status = bmp280_get_comp_pres_32bit(&pres32, bmp280_1_data.uncomp_press, &bmp280_1);
-
-    /* Getting the compensated pressure as floating point value */
-    BMP280_1_Status = bmp280_get_comp_pres_double(&pres, bmp280_1_data.uncomp_press, &bmp280_1);
-
-    /* Wyświetlanie pożądanego tekstu na LCD*/
-    sprintf((char*)disp.f_line, "T:%d T_Z:%d",temp32, temperatura_zadana);
-    sprintf((char*)disp.s_line, "kp*u:%d", wzmocnienie);
-    lcd_display(&disp);
-
-
-
-    /*Obsługa wyświetlacza lcd*/
-
-
-
-
-
-          	 //blad = -temp32+temperatura_zadana;
-          	 int n=sprintf(tx_buffer, "temp32: %d ; temp_zad: %d ; wzmocnienie: %d\r\n",temp32, temperatura_zadana, wzmocnienie);
-          	 HAL_UART_Transmit(&huart3, (uint8_t*)tx_buffer, n, 100);
-
-          	/* Sleep time between measurements = BMP280_ODR_250_MS */
-          	bmp280_1.delay_ms(250);
+//wysylanie po UART
+wysylanie_UART(tx_buffer, &temp32, &temperatura_zadana, &wzmocnienie_grzalka,  &wzmocnienie_wiatrak);
+HAL_UART_Transmit(&huart6, (uint8_t*)"HELLO WORLD!", 12, 100);
+/* Delay pomiedzy pomiarami = BMP280_ODR_250_MS */
+bmp280_1.delay_ms(250);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+}
   /* USER CODE END 3 */
 }
 
@@ -288,8 +269,10 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_I2C1;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_USART6
+                              |RCC_PERIPHCLK_I2C1;
   PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
+  PeriphClkInitStruct.Usart6ClockSelection = RCC_USART6CLKSOURCE_PCLK2;
   PeriphClkInitStruct.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
@@ -308,7 +291,7 @@ void SystemClock_Config(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
+/* User can add his own implementation to report the HAL error return state */
 
   /* USER CODE END Error_Handler_Debug */
 }
@@ -324,8 +307,8 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+/* User can add his own implementation to report the file name and line number,
+ tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
