@@ -183,7 +183,7 @@ lcd_init(&disp);
 //Status czujnika
 BMP280_1_Status = BMP280_Init(&bmp280_1);
 //Oczekiwanie na zadaną temperaturę po porcie szeregowym
-HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,5);
+HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,4);
 //Uruchomienie kanału PWM do sterowania grzałką
 HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
 HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
