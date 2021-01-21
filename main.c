@@ -29,7 +29,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "components.h"
-//#include "lcd_i2c.h"
 #include <stdio.h>
 #include <stdbool.h>
 /* USER CODE END Includes */
@@ -63,10 +62,6 @@ uint32_t enc_counter = 0;
 int32_t temperatura_zadana=TEMP_MIN;
 uint32_t kp =20;
 uint32_t uchyb = 0;
-uint32_t acc1=0;
-uint32_t acc2=0;
-uint32_t acc3=0;
-uint32_t acc4=0;
 char rx_buffer[5];
 char tx_buffer[200];
 char tx_buffer2[50];
@@ -82,70 +77,76 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 /**
-* @brief  EXTI line detection callbacks.
-* @param  GPIO_Pin Specifies the pins connected EXTI line
-* @retval None
-*/
+  * @brief  Period elapsed callback in non-blocking mode
+  * @param  htim TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-if(htim->Instance==TIM2)
-{
- regulacja(&wzmocnienie_grzalka,  &wzmocnienie_wiatrak,  &kp, &uchyb,  &temperatura_zadana,  &temp32);
- sterowanie( &wzmocnienie_grzalka,  &wzmocnienie_wiatrak);
-}
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-/*Przyciski do zmiany temperatury*/
-if(GPIO_Pin == EX1_Btn_Pin)
-{
- if(temperatura_zadana==TEMP_MIN)
- {
-	 temperatura_zadana=TEMP_MIN;
- }
- else
- {
- temperatura_zadana+=-TEMP_STEP;
- }
-}
-if(GPIO_Pin == EX2_Btn_Pin)
-{
- if(temperatura_zadana==TEMP_MAX)
- {
-	 temperatura_zadana=TEMP_MAX;
- }
- else
- {
-	 temperatura_zadana+=TEMP_STEP;
- }
-}
+  if(htim->Instance==TIM2)
+  {
+    regulacja(&wzmocnienie_grzalka,  &wzmocnienie_wiatrak,  &kp, &uchyb,  &temperatura_zadana,  &temp32);
+    sterowanie( &wzmocnienie_grzalka,  &wzmocnienie_wiatrak);
+  }
 }
 
 /**
-* @brief  Period elapsed callback in non-blocking mode
-* @param  htim TIM handle
-* @retval None
-*/
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+  * @brief  EXTI line detection callbacks.
+  * @param  GPIO_Pin Specifies the pins connected EXTI line
+  * @retval None
+  */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-if(huart->Instance ==USART3)
-pobieranie_temperatury_UART(rx_buffer, &acc1, &acc2, &acc3,& acc4, &temperatura_zadana);
+  /*Przyciski do zmiany temperatury*/
+  if(GPIO_Pin == EX1_Btn_Pin)
+  {
+    if(temperatura_zadana==TEMP_MIN)
+    {
+	  temperatura_zadana=TEMP_MIN;
+    }
+    else
+    {
+	  temperatura_zadana+=-TEMP_STEP;
+    }
+  }
+  if(GPIO_Pin == EX2_Btn_Pin)
+  {
+    if(temperatura_zadana==TEMP_MAX)
+    {
+	  temperatura_zadana=TEMP_MAX;
+    }
+    else
+    {
+	  temperatura_zadana+=TEMP_STEP;
+    }
+  }
 }
+
+/**
+  * @brief  Rx Transfer completed callback.
+  * @param  huart UART handle.
+  * @retval None
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+  {
+  if(huart->Instance ==USART3)
+    pobieranie_temperatury_UART(rx_buffer,&temperatura_zadana);
+  }
 
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+* @brief  The application entry point.
+* @retval int
+*/
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-int8_t BMP280_1_Status = -1;
+  int8_t BMP280_1_Status = -1;
 
-struct bmp280_uncomp_data bmp280_1_data;
+  struct bmp280_uncomp_data bmp280_1_data;
 
 
 
@@ -178,48 +179,58 @@ struct bmp280_uncomp_data bmp280_1_data;
   MX_I2C1_Init();
   MX_SPI4_Init();
   /* USER CODE BEGIN 2 */
-//Inicjalizacja wyświetlacza
-lcd_init(&disp);
-//Status czujnika
-BMP280_1_Status = BMP280_Init(&bmp280_1);
-//Oczekiwanie na zadaną temperaturę po porcie szeregowym
-HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,4);
-//Uruchomienie kanału PWM do sterowania grzałką
-HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
-HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
-HAL_TIM_Base_Start_IT(&htim2);
+  //Inicjalizacja wyświetlacza
+  lcd_init(&disp);
+
+  //Status czujnika
+  BMP280_1_Status = BMP280_Init(&bmp280_1);
+
+  //Oczekiwanie na zadaną temperaturę po porcie szeregowym
+  HAL_UART_Receive_DMA(&huart3,(uint8_t*)rx_buffer,4);
+
+  //Uruchomienie kanału PWM do sterowania grzałką
+  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+
+  //Uruchomienie kanału PWM do sterowania wentylatorem
+  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_2);
+
+  //uruchomienie timera potrzebnego do regulacji
+  HAL_TIM_Base_Start_IT(&htim2);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-while (1)
-{
-/* Odczytywanie surowych danych z sensora */
-BMP280_1_Status = bmp280_get_uncomp_data(&bmp280_1_data, &bmp280_1);
+  while (1)
+  {
+    /* Odczytywanie surowych danych z sensora */
+    BMP280_1_Status = bmp280_get_uncomp_data(&bmp280_1_data, &bmp280_1);
 
-/* Otrzymywanie 32-bitowej skompensowanej temperatury */
-BMP280_1_Status = bmp280_get_comp_temp_32bit(&temp32,   bmp280_1_data.uncomp_temp, &bmp280_1);
+    /* Otrzymywanie 32-bitowej skompensowanej temperatury */
+    BMP280_1_Status = bmp280_get_comp_temp_32bit(&temp32,   bmp280_1_data.uncomp_temp, &bmp280_1);
 
-/*LCD*/
-sprintf((char*)disp.f_line, "T:%d T_Z:%d",(int)temp32, (int)temperatura_zadana);
-sprintf((char*)disp.s_line, "w_g:%d w_w:%d", (int)wzmocnienie_grzalka,(int)wzmocnienie_wiatrak);
-lcd_display(&disp);
+    /*LCD*/
+    sprintf((char*)disp.f_line, "T:%d T_Z:%d",(int)temp32, (int)temperatura_zadana);
+    sprintf((char*)disp.s_line, "w_g:%d w_w:%d", (int)wzmocnienie_grzalka,(int)wzmocnienie_wiatrak);
+    lcd_display(&disp);
 
-//wysylanie po UART
-wysylanie_UART(tx_buffer, &temp32, &temperatura_zadana, &wzmocnienie_grzalka,  &wzmocnienie_wiatrak);
-/* Delay pomiedzy pomiarami = BMP280_ODR_250_MS */
-bmp280_1.delay_ms(250);
+    //wysylanie po UART
+    wysylanie_UART(tx_buffer, &temp32, &temperatura_zadana, &wzmocnienie_grzalka,  &wzmocnienie_wiatrak);
+
+    /* Delay pomiedzy pomiarami = BMP280_ODR_250_MS */
+    bmp280_1.delay_ms(250);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-}
+  }
   /* USER CODE END 3 */
 }
 
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+  /**
+* @brief System Clock Configuration
+* @retval None
+*/
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -257,7 +268,7 @@ void SystemClock_Config(void)
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+				  |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
@@ -265,7 +276,7 @@ void SystemClock_Config(void)
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK)
   {
-    Error_Handler();
+  Error_Handler();
   }
   PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3|RCC_PERIPHCLK_I2C1;
   PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
@@ -281,30 +292,30 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+* @brief  This function is executed in case of error occurrence.
+* @retval None
+*/
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-/* User can add his own implementation to report the HAL error return state */
+  /* User can add his own implementation to report the HAL error return state */
 
   /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+* @brief  Reports the name of the source file and the source line number
+*         where the assert_param error has occurred.
+* @param  file: pointer to the source file name
+* @param  line: assert_param error line source number
+* @retval None
+*/
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-/* User can add his own implementation to report the file name and line number,
- tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* User can add his own implementation to report the file name and line number,
+  tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

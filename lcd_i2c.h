@@ -63,9 +63,40 @@ struct lcd_disp {
 
 extern struct lcd_disp disp;
 
+/**
+ * @brief Inicjalizacja LCD
+ *
+ * @param struktura lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_init(struct lcd_disp * lcd);
+
+/**
+ * @brief Zapis do LCD
+ *
+ * @param parametry struktury lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_write(uint8_t addr, uint8_t data, uint8_t xpin);
+
+/**
+ * @brief Wyświetlanie LCD
+ *
+ * @param struktura lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_display(struct lcd_disp * lcd);
+
+/**
+ * @brief Czyszczenie LCD
+ *
+ * @param struktura lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_clear(struct lcd_disp * lcd);
 
 #endif /* INC_LCD_I2C_H_ */

@@ -29,6 +29,13 @@ struct lcd_disp disp  = {
     .addr=(0x27<<1), .bl = true
   };
 
+/**
+ * @brief Inicjalizacja LCD
+ *
+ * @param struktura lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_init(struct lcd_disp * lcd)
 {
 	uint8_t xpin = 0;
@@ -57,6 +64,13 @@ void lcd_init(struct lcd_disp * lcd)
 
 }
 
+/**
+ * @brief Zapis do LCD
+ *
+ * @param parametry struktury lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_write(uint8_t addr, uint8_t data, uint8_t xpin)
 {
 	uint8_t tx_data[4];
@@ -73,6 +87,13 @@ void lcd_write(uint8_t addr, uint8_t data, uint8_t xpin)
 	HAL_Delay(5);
 }
 
+/**
+ * @brief Wyświetlanie LCD
+ *
+ * @param struktura lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_display(struct lcd_disp * lcd)
 {
 	uint8_t xpin = 0, i = 0;
@@ -103,6 +124,13 @@ void lcd_display(struct lcd_disp * lcd)
 	}
 }
 
+/**
+ * @brief Czyszczenie LCD
+ *
+ * @param struktura lcd_dsip
+ *
+ * @retval Brak
+ */
 void lcd_clear(struct lcd_disp * lcd)
 {
 	uint8_t xpin = 0;
